@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from langchain_groq import ChatGroq
-from langchain_community.document_loaders import WebBaseLoader
+# from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import PyPDFLoader
 # from langchain.embeddings import OllamaEmbeddings
 from langchain_community.embeddings import OllamaEmbeddings
@@ -21,6 +21,7 @@ groq_api_key=os.environ['GROQ_API_KEY']
 if "vector" not in st.session_state:
     st.session_state.embeddings=OllamaEmbeddings()
     st.session_state.loader=PyPDFLoader("New Oxford Textbook of Psychiatry-2161hlm.pdf")
+    # st.session_state.loader=WebBaseLoader("https://www.rcpsych.ac.uk/news-and-features/blogs/detail/the-rcpsych-blog/2024/06/06/smoking-and-mental-health--a-framework-for-action-in-wales")
     st.session_state.docs=st.session_state.loader.load()
 
     st.session_state.text_splitter=RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
