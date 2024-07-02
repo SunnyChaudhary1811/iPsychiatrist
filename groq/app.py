@@ -50,19 +50,26 @@ st.markdown("""
             color: #333;
         }
         .stApp {
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: rgba(255, 255, 255, 0.9);
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: auto;
+            margin-top: 40px;
         }
         .chat-message {
-            padding: 10px;
+            padding: 10px 15px;
             margin: 10px 0;
-            border-radius: 10px;
+            border-radius: 20px;
             background-color: #f0f0f0;
+            max-width: 75%;
+            word-wrap: break-word;
         }
         .chat-message.user {
             background-color: #d1e7dd;
+            align-self: flex-end;
+            margin-left: auto;
         }
         .chat-message.assistant {
             background-color: #ffe5e5;
@@ -78,13 +85,19 @@ st.markdown("""
         .stTextInput>div>div>input {
             padding: 10px;
             font-size: 1rem;
-            border-radius: 5px;
+            border-radius: 20px;
             border: 1px solid #ccc;
+            width: 100%;
+            margin-top: 10px;
         }
         .stExpander>div>div {
             background-color: #f8f9fa;
             border: 1px solid #ddd;
             border-radius: 5px;
+        }
+        .chat-container {
+            display: flex;
+            flex-direction: column;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -111,6 +124,14 @@ if "chat_answers_history" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
+st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+
+for answer, user_prompt in zip(st.session_state["chat_answers_history"], st.session_state["user_prompt_history"]):
+    st.markdown(f"<div class='chat-message user'>{user_prompt}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='chat-message assistant'>{answer}</div>", unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
 prompt = st.text_input("Input your prompt here")
 
 if st.button("Submit Prompt"):
@@ -118,7 +139,7 @@ if st.button("Submit Prompt"):
         start = time.process_time()
         response = retrieval_chain.invoke({"input": prompt})
         st.write("Response time:", time.process_time() - start)
-        st.write(response['answer'])
+        st.markdown(f"<div class='chat-message assistant'>{response['answer']}</div>", unsafe_allow_html=True)
 
         st.session_state["chat_answers_history"].append(response['answer'])
         st.session_state["user_prompt_history"].append(prompt)
@@ -129,13 +150,4 @@ if st.button("Submit Prompt"):
             for i, doc in enumerate(response["context"]):
                 st.write(doc.page_content)
                 st.write("--------------------------------")
-
-# Displaying the chat history
-if st.session_state["chat_answers_history"]:
-    for answer, user_prompt in zip(st.session_state["chat_answers_history"], st.session_state["user_prompt_history"]):
-        message1 = st.chat_message("user")
-        message1.write(user_prompt)
-        message2 = st.chat_message("assistant")
-        message2.write(answer)
-
 
