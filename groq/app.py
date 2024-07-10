@@ -11,22 +11,27 @@ from langchain_community.vectorstores import FAISS
 import time
 from dotenv import load_dotenv
 
+# Load environment variables from a .env file
 load_dotenv()
 
-# Load the Groq API key
+# Retrieve the Groq API key from environment variables
 groq_api_key = os.environ['GROQ_API_KEY']
 
+# Path to store the vector embeddings
 VECTOR_STORE_PATH = "vectors"
 
 def initialize_embeddings_and_vectors():
+    """Initializes embeddings and vector store if not already present."""
     if not os.path.exists(VECTOR_STORE_PATH):
         embeddings = HuggingFaceEmbeddings()
         loader = PyPDFLoader("D:\\iPsychiatrist\\groq\\New Oxford Textbook of Psychiatry-2161hlm.pdf")
         docs = loader.load()
         
+        # Split documents into chunks for better processing
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         final_documents = text_splitter.split_documents(docs[:50])
         
+        # Create a vector store from the document chunks
         vectorstore = FAISS.from_documents(final_documents, embeddings)
         vectorstore.save_local(VECTOR_STORE_PATH)
         print("Embeddings successfully created and saved locally.")
@@ -36,14 +41,15 @@ def initialize_embeddings_and_vectors():
 # Initialize embeddings and vector store only once
 initialize_embeddings_and_vectors()
 
-# Load the saved vectors
+# Load the saved vector store
 embeddings = HuggingFaceEmbeddings()
 loaded_vectors = FAISS.load_local(VECTOR_STORE_PATH, embeddings, allow_dangerous_deserialization=True)
 
+# Custom CSS for styling the Streamlit app
 st.markdown("""
     <style>
         body {
-            background-image: url('https://www.example.com/mental_health_background.jpg'); /* Replace with a valid URL */
+            background-image: url('https://media.istockphoto.com/id/1294477039/vector/metaphor-bipolar-disorder-mind-mental-double-face-split-personality-concept-mood-disorder-2.jpg?s=612x612&w=0&k=20&c=JtBxyFapXIA63hzZk_F5WNDF92J8fD2gIFNX3Ta4U3A='); /* Replace with a valid URL */
             background-size: cover;
             background-repeat: no-repeat;
             background-attachment: fixed;
@@ -102,9 +108,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Title of the Streamlit app
 st.title("iPsychiatrist")
+
+# Initialize the language model
 llm = ChatGroq(groq_api_key=groq_api_key, model_name="mixtral-8x7b-32768")
 
+# Define the prompt template for the chat model
 prompt_template = ChatPromptTemplate.from_template("""
 Answer the questions based on the provided context only.
 Please provide the most accurate response based on the question.
@@ -113,10 +123,17 @@ Please provide the most accurate response based on the question.
 <context>
 Questions: {input}
 """)
+
+# Create the document chain for processing
 document_chain = create_stuff_documents_chain(llm, prompt_template)
+
+# Create a retriever from the loaded vector store
 retriever = loaded_vectors.as_retriever()
+
+# Create a retrieval chain using the retriever and document chain
 retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
+# Initialize session state variables to store chat history
 if "user_prompt_history" not in st.session_state:
     st.session_state["user_prompt_history"] = []
 if "chat_answers_history" not in st.session_state:
@@ -124,30 +141,42 @@ if "chat_answers_history" not in st.session_state:
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
+# Display the chat container
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 
+# Display previous chat history
 for answer, user_prompt in zip(st.session_state["chat_answers_history"], st.session_state["user_prompt_history"]):
     st.markdown(f"<div class='chat-message user'>{user_prompt}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='chat-message assistant'>{answer}</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
+# Input for user prompt
 prompt = st.text_input("Input your prompt here")
 
+# Button to submit the prompt
 if st.button("Submit Prompt"):
     if prompt:
+        # Record the start time
         start = time.process_time()
+        
+        # Get the response from the retrieval chain
         response = retrieval_chain.invoke({"input": prompt})
+        
+        # Display the response time
         st.write("Response time:", time.process_time() - start)
+        
+        # Display the user prompt and assistant response
+        st.markdown(f"<div class='chat-message user'>{prompt}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='chat-message assistant'>{response['answer']}</div>", unsafe_allow_html=True)
 
+        # Update session state with the new chat history
         st.session_state["chat_answers_history"].append(response['answer'])
         st.session_state["user_prompt_history"].append(prompt)
         st.session_state["chat_history"].append((prompt, response['answer']))
 
-        # With a Streamlit expander
+        # Display the document similarity search results in an expander
         with st.expander("Document Similarity Search"):
             for i, doc in enumerate(response["context"]):
                 st.write(doc.page_content)
                 st.write("--------------------------------")
-
