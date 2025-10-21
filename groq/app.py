@@ -2,181 +2,377 @@ import streamlit as st
 import os
 from langchain_groq import ChatGroq
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
+from langchain_classic.chains import create_retrieval_chain
 from langchain_community.vectorstores import FAISS
 import time
 from dotenv import load_dotenv
+from datetime import datetime
 
-# Load environment variables from a .env file
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="iPsychiatrist - AI Mental Health Assistant",
+    page_icon="🧠",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+# --- LOAD ENV ---
 load_dotenv()
+groq_api_key = os.getenv('GROQ_API_KEY')
 
-# Retrieve the Groq API key from environment variables
-groq_api_key = os.environ['GROQ_API_KEY']
+if not groq_api_key:
+    st.error("⚠️ GROQ_API_KEY not found. Please set it in your .env file.")
+    st.stop()
 
-# Path to store the vector embeddings
 VECTOR_STORE_PATH = "vectors"
+PDF_PATH = "D:\\iPsychiatrist\\groq\\New Oxford Textbook of Psychiatry-2161hlm.pdf"
 
-def initialize_embeddings_and_vectors():
-    """Initializes embeddings and vector store if not already present."""
-    if not os.path.exists(VECTOR_STORE_PATH):
-        embeddings = HuggingFaceEmbeddings()
-        loader = PyPDFLoader("D:\\iPsychiatrist\\groq\\New Oxford Textbook of Psychiatry-2161hlm.pdf")
+# --- CACHE FUNCTIONS ---
+@st.cache_resource
+def get_embeddings():
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+
+@st.cache_resource
+def initialize_vector_store():
+    embeddings = get_embeddings()
+
+    if os.path.exists(VECTOR_STORE_PATH):
+        try:
+            return FAISS.load_local(
+                VECTOR_STORE_PATH, 
+                embeddings, 
+                allow_dangerous_deserialization=True
+            )
+        except Exception as e:
+            st.warning(f"Could not load existing vectors: {e}. Rebuilding...")
+
+    if not os.path.exists(PDF_PATH):
+        st.error(f"PDF file not found at: {PDF_PATH}")
+        st.stop()
+
+    with st.spinner("📚 Creating vector embeddings from textbook (first 50 pages)..."):
+        loader = PyPDFLoader(PDF_PATH)
         docs = loader.load()
-        
-        # Split documents into chunks for better processing
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        final_documents = text_splitter.split_documents(docs[:50])
-        
-        # Create a vector store from the document chunks
-        vectorstore = FAISS.from_documents(final_documents, embeddings)
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_documents(docs[:50])
+        vectorstore = FAISS.from_documents(chunks, embeddings)
         vectorstore.save_local(VECTOR_STORE_PATH)
-        print("Embeddings successfully created and saved locally.")
-    else:
-        print("Embeddings already exist. Loading from disk.")
+        st.success("✅ Embeddings created successfully.")
+    return vectorstore
 
-# Initialize embeddings and vector store only once
-initialize_embeddings_and_vectors()
-
-# Load the saved vector store
-embeddings = HuggingFaceEmbeddings()
-loaded_vectors = FAISS.load_local(VECTOR_STORE_PATH, embeddings, allow_dangerous_deserialization=True)
-
-# Custom CSS for styling the Streamlit app
+# --- CSS THEME ---
 st.markdown("""
-    <style>
-        body {
-            background-image: url('https://media.istockphoto.com/id/1294477039/vector/metaphor-bipolar-disorder-mind-mental-double-face-split-personality-concept-mood-disorder-2.jpg?s=612x612&w=0&k=20&c=JtBxyFapXIA63hzZk_F5WNDF92J8fD2gIFNX3Ta4U3A='); /* Replace with a valid URL */
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            color: #333;
-        }
-        .stApp {
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            max-width: 800px;
-            margin: auto;
-            margin-top: 40px;
-        }
-        .chat-message {
-            padding: 10px 15px;
-            margin: 10px 0;
-            border-radius: 20px;
-            background-color: #f0f0f0;
-            max-width: 75%;
-            word-wrap: break-word;
-        }
-        .chat-message.user {
-            background-color: #d1e7dd;
-            align-self: flex-end;
-            margin-left: auto;
-        }
-        .chat-message.assistant {
-            background-color: #ffe5e5;
-        }
-        .stButton>button {
-            color: #ffffff;
-            background-color: #007bff;
-            border-color: #007bff;
-            padding: 0.5rem 1rem;
-            font-size: 1rem;
-            border-radius: 5px;
-        }
-        .stTextInput>div>div>input {
-            padding: 10px;
-            font-size: 1rem;
-            border-radius: 20px;
-            border: 1px solid #ccc;
-            width: 100%;
-            margin-top: 10px;
-        }
-        .stExpander>div>div {
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-        }
-    </style>
+<style>
+    .stApp {
+        background: #343541;
+        color: #ececf1;
+        font-family: "Inter", "Segoe UI", sans-serif;
+    }
+
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 6rem !important;
+        max-width: 900px;
+        margin: auto;
+    }
+
+    .main-header {
+        text-align: center;
+        padding: 1rem;
+        background: #444654;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+    .main-header h1 {
+        color: #ececf1;
+        font-size: 1.7rem;
+        font-weight: 600;
+        margin-bottom: 0.2rem;
+    }
+    .main-header p {
+        color: #b1b1c0;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .chat-container {
+        background: #343541;
+        border-radius: 10px;
+        padding: 1rem;
+        height: calc(100vh - 280px);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        scroll-behavior: smooth;
+        border: 1px solid #565869;
+    }
+
+    .chat-message {
+        border-radius: 10px;
+        padding: 1.2rem;
+        line-height: 1.6;
+        font-size: 1rem;
+        word-wrap: break-word;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .user-message {
+        background: #3c3d46;
+        align-self: flex-end;
+        border-left: 3px solid #10a37f;
+    }
+
+    .assistant-message {
+        background: #444654;
+        align-self: flex-start;
+        border-left: 3px solid #19c37d;
+    }
+
+    .message-time {
+        font-size: 0.8rem;
+        color: #8e8ea0;
+        margin-top: 0.5rem;
+        text-align: right;
+    }
+
+    .welcome-message {
+        text-align: center;
+        color: #c5c5d2;
+        padding: 4rem 1rem;
+    }
+    .welcome-message h3 {
+        font-size: 1.8rem;
+        color: #ececf1;
+        margin-bottom: 1rem;
+    }
+    .welcome-message p {
+        color: #a9a9b4;
+        margin: 0.4rem 0;
+    }
+
+    .input-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #40414f;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #565869;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 999;
+    }
+
+    .stTextInput > div > div > input {
+        background: #343541;
+        border: 2px solid #565869;
+        border-radius: 8px;
+        color: #ececf1;
+        padding: 0.8rem 1rem;
+        font-size: 1rem;
+        height: 52px;
+        transition: all 0.2s ease;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #19c37d;
+        box-shadow: 0 0 0 2px rgba(25,195,125,0.2);
+    }
+    .stTextInput > label { display: none; }
+
+    .stButton > button {
+        height: 52px;
+        background: #19c37d;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        font-size: 1rem;
+        width: 100%;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background: #15b06c;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(25,195,125,0.3);
+    }
+    .stButton > button:disabled {
+        background: #565869;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .chat-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    .chat-container::-webkit-scrollbar-thumb {
+        background: #565869;
+        border-radius: 10px;
+    }
+    .chat-container::-webkit-scrollbar-thumb:hover {
+        background: #6e6e80;
+    }
+
+    #MainMenu, footer, header {visibility: hidden;}
+</style>
 """, unsafe_allow_html=True)
 
-# Title of the Streamlit app
-st.title("iPsychiatrist")
+# --- HEADER ---
+st.markdown("""
+<div class="main-header">
+    <h1>🧠 iPsychiatrist</h1>
+    <p>AI-Powered Mental Health Assistant</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Initialize the language model
-llm = ChatGroq(groq_api_key=groq_api_key, model_name="mixtral-8x7b-32768")
+# --- INIT ---
+try:
+    vectorstore = initialize_vector_store()
+except Exception as e:
+    st.error(f"Error initializing vector store: {e}")
+    st.stop()
 
-# Define the prompt template for the chat model
+try:
+    llm = ChatGroq(
+        groq_api_key=groq_api_key, 
+        model_name="llama-3.3-70b-versatile",
+        temperature=0.7
+    )
+except Exception as e:
+    st.error(f"❌ Error initializing Groq model: {e}")
+    st.info("💡 Check available models at https://console.groq.com/docs/models")
+    st.stop()
+
 prompt_template = ChatPromptTemplate.from_template("""
-Answer the questions based on the provided context only.
-Please provide the most accurate response based on the question.
-<context>
+You are iPsychiatrist, a compassionate and knowledgeable AI mental health assistant.
+Provide empathetic, evidence-based responses using psychiatric literature.
+
+Context from psychiatry:
 {context}
-<context>
-Questions: {input}
+
+User Question: {input}
+
+Provide a clear, empathetic, and professional response.
+If unsure, recommend consulting a licensed mental health professional.
 """)
 
-# Create the document chain for processing
 document_chain = create_stuff_documents_chain(llm, prompt_template)
-
-# Create a retriever from the loaded vector store
-retriever = loaded_vectors.as_retriever()
-
-# Create a retrieval chain using the retriever and document chain
+retriever = vectorstore.as_retriever()
 retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
-# Initialize session state variables to store chat history
-if "user_prompt_history" not in st.session_state:
-    st.session_state["user_prompt_history"] = []
-if "chat_answers_history" not in st.session_state:
-    st.session_state["chat_answers_history"] = []
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
+# --- SESSION ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "total_queries" not in st.session_state:
+    st.session_state.total_queries = 0
 
-# Display the chat container
-st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+# --- SIDEBAR ---
+with st.sidebar:
+    st.markdown(f"**💬 Total Chats:** {st.session_state.total_queries}")
+    if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.total_queries = 0
+        st.rerun()
+    st.markdown("---")
+    st.caption("⚠️ Not medical advice. Always consult professionals.")
+    with st.expander("🆘 Crisis Help"):
+        st.markdown("""
+        **If you're in crisis:**
+        - 🇺🇸 USA: 988
+        - 🇮🇳 India: 9152987821
+        """)
 
-# Display previous chat history
-for answer, user_prompt in zip(st.session_state["chat_answers_history"], st.session_state["user_prompt_history"]):
-    st.markdown(f"<div class='chat-message user'>{user_prompt}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='chat-message assistant'>{answer}</div>", unsafe_allow_html=True)
+# --- CHAT UI ---
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+if len(st.session_state.messages) == 0:
+    st.markdown("""
+    <div class="welcome-message">
+        <h3>👋 Welcome to iPsychiatrist</h3>
+        <p>I'm here to help with your mental health questions.</p>
+        <br>
+        <p><strong>Try asking:</strong></p>
+        <p>💭 "What are the symptoms of anxiety?"</p>
+        <p>🧘 "How can I manage stress better?"</p>
+        <p>💡 "What is cognitive behavioral therapy?"</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Input for user prompt
-prompt = st.text_input("Input your prompt here")
+for msg in st.session_state.messages:
+    role = msg["role"]
+    content = msg["content"]
+    timestamp = msg.get("timestamp", "")
+    css_class = "user-message" if role == "user" else "assistant-message"
+    name = "You" if role == "user" else "🧠 iPsychiatrist"
 
-# Button to submit the prompt
-if st.button("Submit Prompt"):
-    if prompt:
-        # Record the start time
-        start = time.process_time()
-        
-        # Get the response from the retrieval chain
-        response = retrieval_chain.invoke({"input": prompt})
-        
-        # Display the response time
-        st.write("Response time:", time.process_time() - start)
-        
-        # Display the user prompt and assistant response
-        st.markdown(f"<div class='chat-message user'>{prompt}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='chat-message assistant'>{response['answer']}</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="chat-message {css_class}">
+        <div><strong>{name}:</strong></div>
+        <div>{content}</div>
+        <div class="message-time">{timestamp}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        # Update session state with the new chat history
-        st.session_state["chat_answers_history"].append(response['answer'])
-        st.session_state["user_prompt_history"].append(prompt)
-        st.session_state["chat_history"].append((prompt, response['answer']))
+st.markdown('</div>', unsafe_allow_html=True)
 
-        # Display the document similarity search results in an expander
-        with st.expander("Document Similarity Search"):
-            for i, doc in enumerate(response["context"]):
-                st.write(doc.page_content)
-                st.write("--------------------------------")
+# --- INPUT AREA ---
+st.markdown('<div class="input-container">', unsafe_allow_html=True)
+col1, col2 = st.columns([6, 1])
+
+with col1:
+    user_input = st.text_input(
+        "message",
+        key="user_input",
+        placeholder="💬 Type your question here...",
+        label_visibility="collapsed"
+    )
+
+with col2:
+    is_processing = st.session_state.get("is_processing", False)
+    send_button = st.button(
+        "⏳" if is_processing else "Send",
+        use_container_width=True,
+        disabled=is_processing
+    )
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --- LOGIC ---
+if send_button and user_input:
+    st.session_state.is_processing = True
+    timestamp = datetime.now().strftime("%I:%M %p")
+
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input,
+        "timestamp": timestamp
+    })
+
+    with st.spinner("🤔 Thinking..."):
+        try:
+            response = retrieval_chain.invoke({"input": user_input})
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": response['answer'],
+                "timestamp": datetime.now().strftime("%I:%M %p")
+            })
+            st.session_state.total_queries += 1
+            st.session_state.is_processing = False
+
+            with st.expander("📚 View Sources"):
+                for i, doc in enumerate(response["context"], 1):
+                    st.caption(f"**Source {i}:**")
+                    st.text(doc.page_content[:400] + "...")
+                    if i < len(response["context"]):
+                        st.markdown("---")
+            st.rerun()
+        except Exception as e:
+            st.session_state.is_processing = False
+            st.error(f"❌ Error: {e}")
+
+elif send_button and not user_input:
+    st.warning("⚠️ Please enter a question.")
