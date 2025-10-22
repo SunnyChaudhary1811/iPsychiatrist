@@ -98,7 +98,8 @@ If unsure, recommend consulting a licensed mental health professional.
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve the frontend"""
-    return HTMLResponse(content="""<!DOCTYPE html>
+    return HTMLResponse(
+        content="""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -229,7 +230,14 @@ async def root():
         window.onload = () => { document.getElementById('messageInput').focus(); };
     </script>
 </body>
-</html>""", status_code=200)
+</html>""",
+        status_code=200,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 @app.get("/health")
 async def health():
