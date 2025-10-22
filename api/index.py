@@ -1,7 +1,9 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import time
 
+# Cache buster: 20251022114500
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
 HTML = """<!DOCTYPE html>
@@ -9,7 +11,7 @@ HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>iPsychiatrist</title>
+<title>iPsychiatrist - Mental Health AI</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
