@@ -28,8 +28,8 @@ if not groq_api_key:
     st.error("⚠️ GROQ_API_KEY not found. Please set it in your .env file.")
     st.stop()
 
-VECTOR_STORE_PATH = "vectors"
-PDF_PATH = "D:\\iPsychiatrist\\groq\\New Oxford Textbook of Psychiatry-2161hlm.pdf"
+VECTOR_STORE_PATH = os.path.join(os.path.dirname(__file__), "vectors")
+PDF_PATH = os.path.join(os.path.dirname(__file__), "New Oxford Textbook of Psychiatry-2161hlm.pdf")
 
 # --- CACHE FUNCTIONS ---
 @st.cache_resource
