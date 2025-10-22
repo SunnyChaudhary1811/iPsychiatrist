@@ -297,3 +297,6 @@ async def info():
         "rag_enabled": vectorstore is not None,
         "api_key_configured": bool(GROQ_API_KEY)
     }
+
+# Vercel serverless function handler
+handler = app
