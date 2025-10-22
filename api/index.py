@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
+from .frontend import HTML_TEMPLATE
 
 # Load environment variables
 load_dotenv()
@@ -98,13 +99,10 @@ If unsure, recommend consulting a licensed mental health professional.
         print(f"Error initializing RAG: {e}")
         return None
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve the frontend"""
-    index_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "iPsychiatrist API", "status": "running", "docs": "/docs"}
+    return HTMLResponse(content=HTML_TEMPLATE, status_code=200)
 
 @app.get("/health")
 async def health():
