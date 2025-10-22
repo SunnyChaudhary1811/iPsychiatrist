@@ -1,0 +1,12 @@
+{
+  "name": "ipsychiatrist",
+  "version": "1.0.0",
+  "description": "AI-Powered Mental Health Assistant",
+  "scripts": {
+    "dev": "python -m uvicorn api.index:app --reload",
+    "build": "echo 'Build complete'"
+  },
+  "keywords": ["mental-health", "ai", "psychiatry"],
+  "author": "Sunny Chaudhary",
+  "license": "MIT"
+}

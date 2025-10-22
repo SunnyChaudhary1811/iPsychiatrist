@@ -1,137 +1,165 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import List, Optional
 import os
+from dotenv import load_dotenv
 
-app = FastAPI()
+# Load environment variables
+load_dotenv()
+
+app = FastAPI(title="iPsychiatrist API")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Models
+class ChatMessage(BaseModel):
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
+    sources: Optional[List[str]] = []
+
+# Global variables for lazy loading
+retrieval_chain = None
+vectorstore = None
+
+def initialize_rag():
+    """Initialize RAG system with lazy loading"""
+    global retrieval_chain, vectorstore
+    
+    if retrieval_chain is not None:
+        return retrieval_chain
+    
+    try:
+        from langchain_groq import ChatGroq
+        from langchain_huggingface import HuggingFaceEmbeddings
+        from langchain_community.vectorstores import FAISS
+        from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_classic.chains import create_retrieval_chain
+        
+        groq_api_key = os.getenv('GROQ_API_KEY')
+        if not groq_api_key:
+            raise ValueError("GROQ_API_KEY not found in environment variables")
+        
+        # Initialize embeddings
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+        
+        # Load vector store
+        vector_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "groq", "vectors")
+        if os.path.exists(vector_path):
+            vectorstore = FAISS.load_local(
+                vector_path,
+                embeddings,
+                allow_dangerous_deserialization=True
+            )
+        else:
+            # Return a simple response if vectors don't exist
+            return None
+        
+        # Initialize LLM
+        llm = ChatGroq(
+            groq_api_key=groq_api_key,
+            model_name="llama-3.3-70b-versatile",
+            temperature=0.7
+        )
+        
+        # Create prompt template
+        prompt_template = ChatPromptTemplate.from_template("""
+You are iPsychiatrist, a compassionate and knowledgeable AI mental health assistant.
+Provide empathetic, evidence-based responses using psychiatric literature.
+
+Context from psychiatry:
+{context}
+
+User Question: {input}
+
+Provide a clear, empathetic, and professional response.
+If unsure, recommend consulting a licensed mental health professional.
+""")
+        
+        # Create chains
+        document_chain = create_stuff_documents_chain(llm, prompt_template)
+        retriever = vectorstore.as_retriever()
+        retrieval_chain = create_retrieval_chain(retriever, document_chain)
+        
+        return retrieval_chain
+    
+    except Exception as e:
+        print(f"Error initializing RAG: {e}")
+        return None
 
 @app.get("/")
 async def root():
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>iPsychiatrist - Deployment Info</title>
-        <style>
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                margin: 0;
-                padding: 20px;
-            }
-            .container {
-                background: white;
-                padding: 3rem;
-                border-radius: 20px;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                max-width: 600px;
-                text-align: center;
-            }
-            h1 {
-                color: #667eea;
-                margin-bottom: 1rem;
-                font-size: 2.5rem;
-            }
-            .icon {
-                font-size: 4rem;
-                margin-bottom: 1rem;
-            }
-            p {
-                color: #555;
-                line-height: 1.6;
-                margin: 1rem 0;
-            }
-            .info-box {
-                background: #f8f9fa;
-                padding: 1.5rem;
-                border-radius: 10px;
-                margin: 1.5rem 0;
-                border-left: 4px solid #667eea;
-            }
-            .warning {
-                background: #fff3cd;
-                border-left-color: #ffc107;
-                color: #856404;
-            }
-            code {
-                background: #e9ecef;
-                padding: 2px 6px;
-                border-radius: 4px;
-                font-family: 'Courier New', monospace;
-            }
-            .steps {
-                text-align: left;
-                margin: 1.5rem 0;
-            }
-            .steps li {
-                margin: 0.5rem 0;
-                padding-left: 0.5rem;
-            }
-            a {
-                color: #667eea;
-                text-decoration: none;
-                font-weight: 600;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="icon">🧠</div>
-            <h1>iPsychiatrist</h1>
-            <p><strong>AI-Powered Mental Health Assistant</strong></p>
-            
-            <div class="info-box warning">
-                <p><strong>⚠️ Streamlit Apps Cannot Run on Vercel Serverless</strong></p>
-                <p>Streamlit requires a persistent WebSocket connection and long-running process, which Vercel's serverless functions don't support (10-second timeout).</p>
-            </div>
-            
-            <div class="info-box">
-                <p><strong>✅ Recommended Deployment Options:</strong></p>
-                <div class="steps">
-                    <ol>
-                        <li><strong>Streamlit Cloud</strong> (Free & Easy)
-                            <br>→ <a href="https://streamlit.io/cloud" target="_blank">streamlit.io/cloud</a>
-                        </li>
-                        <li><strong>Railway</strong> (Free tier available)
-                            <br>→ <a href="https://railway.app" target="_blank">railway.app</a>
-                        </li>
-                        <li><strong>Render</strong> (Free tier available)
-                            <br>→ <a href="https://render.com" target="_blank">render.com</a>
-                        </li>
-                        <li><strong>Hugging Face Spaces</strong> (Free)
-                            <br>→ <a href="https://huggingface.co/spaces" target="_blank">huggingface.co/spaces</a>
-                        </li>
-                    </ol>
-                </div>
-            </div>
-            
-            <div class="info-box">
-                <p><strong>📝 Quick Deploy to Streamlit Cloud:</strong></p>
-                <div class="steps">
-                    <ol>
-                        <li>Push your code to GitHub</li>
-                        <li>Go to <a href="https://share.streamlit.io" target="_blank">share.streamlit.io</a></li>
-                        <li>Connect your GitHub repo</li>
-                        <li>Set main file path: <code>groq/app.py</code></li>
-                        <li>Add <code>GROQ_API_KEY</code> in secrets</li>
-                    </ol>
-                </div>
-            </div>
-            
-            <p style="margin-top: 2rem; color: #999; font-size: 0.9rem;">
-                For local development, run: <code>streamlit run groq/app.py</code>
-            </p>
-        </div>
-    </body>
-    </html>
-    """)
+    """Serve the frontend"""
+    index_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "iPsychiatrist API", "status": "running", "docs": "/docs"}
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "message": "API is running, but Streamlit app requires different hosting"}
+    return {"status": "ok", "message": "API is running"}
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(message: ChatMessage):
+    """Handle chat messages"""
+    try:
+        chain = initialize_rag()
+        
+        if chain is None:
+            # Fallback response if RAG is not initialized
+            from langchain_groq import ChatGroq
+            groq_api_key = os.getenv('GROQ_API_KEY')
+            if not groq_api_key:
+                raise HTTPException(status_code=500, detail="GROQ_API_KEY not configured")
+            
+            llm = ChatGroq(
+                groq_api_key=groq_api_key,
+                model_name="llama-3.3-70b-versatile",
+                temperature=0.7
+            )
+            
+            response = llm.invoke(f"""You are iPsychiatrist, a compassionate AI mental health assistant.
+            
+User: {message.message}
+            
+Provide a helpful, empathetic response. If this is a serious mental health concern, recommend consulting a licensed professional.""")
+            
+            return ChatResponse(
+                response=response.content,
+                sources=[]
+            )
+        
+        # Use RAG chain
+        result = chain.invoke({"input": message.message})
+        
+        sources = []
+        if "context" in result:
+            sources = [doc.page_content[:200] + "..." for doc in result["context"][:3]]
+        
+        return ChatResponse(
+            response=result["answer"],
+            sources=sources
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
+
+@app.get("/api/info")
+async def info():
+    return {
+        "name": "iPsychiatrist",
+        "version": "1.0.0",
+        "description": "AI-Powered Mental Health Assistant",
+        "rag_enabled": vectorstore is not None
+    }

@@ -1,140 +1,165 @@
-1. User Input (Prompt Submission)
-Description:
+# 🧠 iPsychiatrist - AI Mental Health Assistant
 
- The user interacts with the chatbot through the Streamlit interface by submitting a question or query in the text input box.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SunnyChaudhary1811/iPsychiatrist)
 
- 
-Components:
+An AI-powered mental health assistant that uses RAG (Retrieval-Augmented Generation) to provide evidence-based responses using psychiatric literature.
 
+## 🚀 Live Demo
 
-Streamlit Frontend:
+Visit the deployed app: [Deploy on Vercel](https://vercel.com/new/clone?repository-url=https://github.com/SunnyChaudhary1811/iPsychiatrist)
 
-The app interface allows users to submit prompts. When the user types a question, it gets captured by the app.
-st.text_input("Input your prompt here"): This takes the input from the user.
+## 📚 Documentation
 
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes! ⚡
+- **[SETUP.md](SETUP.md)** - Complete setup and installation guide
+- **[VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md)** - Vercel deployment instructions
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Project architecture and file structure
 
-3. Prompt Capture and Processing
+## ✨ Features
 
-   
-Description:
+- 💬 Real-time chat interface
+- 🧠 RAG-powered responses using psychiatric textbook
+- 📚 Source citations for transparency
+- 🎨 Beautiful, responsive UI
+- 🆘 Crisis help resources
+- ⚡ Fast API responses
 
-The input prompt is processed after the user clicks the "Submit Prompt" button.
+## 🏗️ Architecture
 
+### Frontend
+- HTML/CSS/JavaScript with Tailwind CSS
+- Real-time chat interface
+- Typing indicators and animations
 
-Components:
+### Backend
+- FastAPI REST API
+- LangChain for RAG pipeline
+- FAISS vector store for document retrieval
 
+## 📖 How It Works
 
-if st.button("Submit Prompt"):: Captures the prompt input when the user clicks the button.
-Prompt stored in session state: Ensures the prompt is saved for further processing and historical display.
+### RAG Pipeline
 
+1. **User Input** - Question submitted via web interface
+2. **Document Retrieval** - FAISS searches vector store for relevant context
+3. **Context Generation** - Retrieved chunks combined with user query
+4. **LLM Processing** - Groq LLM generates response using context
+5. **Response Display** - Answer shown with source citations
 
-5. Document Retrieval (Retriever)
+**Flow:** User Query → Vector Search → Context Retrieval → LLM Generation → Response + Sources
 
-   
-Description:
+This RAG approach ensures responses are grounded in psychiatric literature, providing accurate and evidence-based information.
 
-The chatbot retrieves relevant document chunks based on the user’s query.
+---
 
+## 🚀 Deployment
 
-Components:
+### Deploy to Vercel (Recommended)
 
+1. **Fork/Clone this repository**
 
-FAISS (Facebook AI Similarity Search): This is a vector-based retrieval system that compares the user query to vector embeddings of the document chunks (derived from a PDF in this case).
+2. **Add Environment Variable:**
+   - Go to Vercel Dashboard → Settings → Environment Variables
+   - Add: `GROQ_API_KEY` = `your_groq_api_key_here`
 
-Vector Embeddings:
+3. **Deploy:**
+   ```bash
+   git add .
+   git commit -m "Deploy to Vercel"
+   git push origin main
+   ```
 
-The embeddings are generated using HuggingFace models and represent the PDF chunks as numerical vectors.
-retriever = loaded_vectors.as_retriever(): Converts the FAISS vectors into a retriever that can search for relevant chunks.
+4. **Vercel will auto-deploy!** 🎉
 
+See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for detailed instructions.
 
-Flow:
+---
 
+## 💻 Local Development
 
-The system compares the prompt to the embedded document chunks and retrieves the most relevant sections.
+### Run the Web App (FastAPI):
+```bash
+pip install -r api/requirements.txt
+python -m uvicorn api.index:app --reload
+```
+Open: http://localhost:8000
 
+### Run the Streamlit Version (Alternative):
+```bash
+cd groq
+pip install -r ../Requirements.txt
+streamlit run app.py
+```
 
-7. Context Generation
+---
 
-   
-Description: After retrieving the document chunks, they are combined to form the context needed for the language model to generate an accurate response.
+## 📁 Project Structure
 
+```
+iPsychiatrist/
+├── api/
+│   ├── index.py              # FastAPI backend
+│   └── requirements.txt      # Python dependencies
+├── public/
+│   └── index.html           # Frontend chat interface
+├── groq/
+│   ├── app.py               # Streamlit version (alternative)
+│   ├── vectors/             # FAISS vector store
+│   └── *.pdf                # Psychiatry textbook
+├── vercel.json              # Vercel configuration
+├── package.json             # Project metadata
+└── README.md                # This file
+```
 
-Components:
+---
 
+## 🔧 Configuration
 
-text_splitter = RecursiveCharacterTextSplitter(...): Splits the loaded PDF into manageable chunks before processing.
-retrieval_chain = create_retrieval_chain(retriever, document_chain): Creates a pipeline where the retrieved chunks are passed to the language model along with the user’s question.
+### Environment Variables:
+- `GROQ_API_KEY` - Your Groq API key (required)
 
-9. Answer Generation (Language Model)
+### Get a Groq API Key:
+1. Visit [console.groq.com](https://console.groq.com)
+2. Sign up for free
+3. Generate an API key
+4. Add it to your `.env` file or Vercel environment variables
 
-    
-Description:
+---
 
-The retrieved context is passed to a large language model (LLM) that generates a response based on the given context.
+## ⚠️ Important Notes
 
+- **Not Medical Advice:** This is an AI assistant for informational purposes only
+- **Crisis Resources:** Built-in crisis helpline information
+- **Data Privacy:** No conversation data is stored
+- **Rate Limits:** Subject to Groq API rate limits
 
-Components:
+---
 
+## 🆘 Crisis Resources
 
-LLM (Language Model): 
+If you're in crisis, please contact:
+- 🇺🇸 USA: **988** (Suicide & Crisis Lifeline)
+- 🇮🇳 India: **9152987821**
+- 🌍 International: [findahelpline.com](https://findahelpline.com)
 
-In this case, ChatGroq, a large language model, processes the user’s question and the retrieved context to produce a coherent answer.
-Prompt Template: The prompt template defines how the retrieved context and the question are framed for the model. 
+---
 
+## 📝 License
 
-Flow:
+MIT License - See LICENSE file for details
 
+---
 
-The context and user query are passed to the language model, and the model generates an answer based on this combined information.
+## 👨‍💻 Author
 
+**Sunny Chaudhary**
+- GitHub: [@SunnyChaudhary1811](https://github.com/SunnyChaudhary1811)
 
-11. Response Display
+---
 
-    
-Description:
+## 🙏 Acknowledgments
 
-The generated answer from the model is displayed in the Streamlit interface, along with the user’s original query.
-
-
-Components:
-
-
-st.markdown(f"<div class='chat-message assistant'>{response['answer']}</div>", unsafe_allow_html=True): Displays the chatbot’s response in a chat-like format.
-The user’s input and the assistant’s response are stored in session history, allowing the conversation to flow naturally.
-
-
-13. Chat History
-
-    
-Description: The chat history, including all previous prompts and answers, is stored and displayed dynamically.
-Components:
-Session State: This stores the chat history:
-
-
-
-Flow:
-
-
-Every prompt and response is saved and displayed as part of the chat history.
-
-
-15. Document Similarity Search (Expander)
-
-    
-Description:
-
-Along with the chatbot’s answer, the relevant document chunks (retrieved context) are displayed in an expander. This shows how the answer was derived from the context.
-
-
-Components:
-
-
-st.expander("Document Similarity Search"):: This creates an expandable section to show the raw text from the document chunks.
-Document content from response["context"]: Displays the text from the retrieved chunks.
-
-
-Summary of the Flow:
-
-
-User Prompt → 2. Prompt Processing → 3. Document Retrieval → 4. Context Generation → 5. Answer Generation by LLM → 6. Response Display → 7. Chat History Storage → 8. Document Similarity Search Display
-This entire flow allows the chatbot to deliver contextual, accurate, and fact-based answers using the RAG approach.
+- Groq for fast LLM inference
+- LangChain for RAG framework
+- HuggingFace for embeddings
+- Vercel for hosting

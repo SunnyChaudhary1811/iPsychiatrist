@@ -1,14 +1,55 @@
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Virtual Environment
 iyenv/
+venv/
+env/
+ENV/
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py[cod]
+*$py.class
 .Python
 *.so
 *.egg
 *.egg-info/
 dist/
 build/
+*.whl
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Backup files
+*.bak
+*.backup
+*_backup.*
+*_fixed.*
+*.bat
+
+# Large files (use Git LFS if needed)
+*.pdf
+
+# Vercel
+.vercel
