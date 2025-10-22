@@ -4,20 +4,9 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import os
-from dotenv import load_dotenv
-
-# Import HTML template
-try:
-    from api.frontend import HTML_TEMPLATE
-except ImportError:
-    try:
-        from frontend import HTML_TEMPLATE
-    except ImportError:
-        # Fallback if imports fail
-        HTML_TEMPLATE = None
 
 # Load environment variables
-load_dotenv()
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 
 app = FastAPI(title="iPsychiatrist API")
 
@@ -57,9 +46,8 @@ def initialize_rag():
         from langchain_core.prompts import ChatPromptTemplate
         from langchain_classic.chains import create_retrieval_chain
         
-        groq_api_key = os.getenv('GROQ_API_KEY')
-        if not groq_api_key:
-            raise ValueError("GROQ_API_KEY not found in environment variables")
+        if not GROQ_API_KEY:
+            return None
         
         # Initialize embeddings
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
@@ -73,12 +61,11 @@ def initialize_rag():
                 allow_dangerous_deserialization=True
             )
         else:
-            # Return a simple response if vectors don't exist
             return None
         
         # Initialize LLM
         llm = ChatGroq(
-            groq_api_key=groq_api_key,
+            groq_api_key=GROQ_API_KEY,
             model_name="llama-3.3-70b-versatile",
             temperature=0.7
         )
@@ -111,12 +98,7 @@ If unsure, recommend consulting a licensed mental health professional.
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve the frontend"""
-    if HTML_TEMPLATE:
-        return HTMLResponse(content=HTML_TEMPLATE, status_code=200)
-    
-    # Inline fallback HTML
-    return HTMLResponse(content="""
-<!DOCTYPE html>
+    return HTMLResponse(content="""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -247,12 +229,11 @@ async def root():
         window.onload = () => { document.getElementById('messageInput').focus(); };
     </script>
 </body>
-</html>
-    """, status_code=200)
+</html>""", status_code=200)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "message": "API is running"}
+    return {"status": "ok", "message": "API is running", "api_key_set": bool(GROQ_API_KEY)}
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):
@@ -263,12 +244,12 @@ async def chat(message: ChatMessage):
         if chain is None:
             # Fallback response if RAG is not initialized
             from langchain_groq import ChatGroq
-            groq_api_key = os.getenv('GROQ_API_KEY')
-            if not groq_api_key:
+            
+            if not GROQ_API_KEY:
                 raise HTTPException(status_code=500, detail="GROQ_API_KEY not configured")
             
             llm = ChatGroq(
-                groq_api_key=groq_api_key,
+                groq_api_key=GROQ_API_KEY,
                 model_name="llama-3.3-70b-versatile",
                 temperature=0.7
             )
@@ -305,5 +286,6 @@ async def info():
         "name": "iPsychiatrist",
         "version": "1.0.0",
         "description": "AI-Powered Mental Health Assistant",
-        "rag_enabled": vectorstore is not None
+        "rag_enabled": vectorstore is not None,
+        "api_key_configured": bool(GROQ_API_KEY)
     }
